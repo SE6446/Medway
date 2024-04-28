@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2024 JetMoE AI and the HuggingFace Inc. team. All rights reserved.
+# Copyright 2024 Archie Macdonald and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""JetMoE model configuration"""
+"""Medway model configuration"""
 
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
@@ -21,13 +21,13 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class JetMoEConfig(PretrainedConfig):
+class MedwayConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`JetMoEModel`]. It is used to instantiate an
-    JetMoE model according to the specified arguments, defining the model architecture. Instantiating a configuration
-    with the defaults will yield a configuration of the JetMoE-4B.
+    This is the configuration class to store the configuration of a [`MedwayModel`]. It is used to instantiate an
+    Medway model according to the specified arguments, defining the model architecture. Instantiating a configuration
+    with the defaults will yield a configuration of the Medway-4B.
 
-    [jetmoe/jetmoe-8b](https://huggingface.co/jetmoe/jetmoe-8b)
+    [Medway/Medway-8b](https://huggingface.co/Medway/Medway-8b)
 
     Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
     documentation from [`PretrainedConfig`] for more information.
@@ -35,8 +35,8 @@ class JetMoEConfig(PretrainedConfig):
 
     Args:
         vocab_size (`int`, *optional*, defaults to 32000):
-            Vocabulary size of the JetMoE model. Defines the number of different tokens that can be represented by the
-            `inputs_ids` passed when calling [`JetMoEModel`]
+            Vocabulary size of the Medway model. Defines the number of different tokens that can be represented by the
+            `inputs_ids` passed when calling [`MedwayModel`]
         hidden_size (`int`, *optional*, defaults to 2048):
             Dimension of the hidden representations.
         num_hidden_layers (`int`, *optional*, defaults to 12): Defines the number of blocks.
@@ -47,7 +47,7 @@ class JetMoEConfig(PretrainedConfig):
         kv_channels (`int`, *optional*, defaults to 128): Defines the number of channels for the key and value tensors.
         ffn_hidden_size (`int`, *optional*, defaults to 5632): Defines the hidden size of the feed-forward layer.
         max_position_embeddings (`int`, *optional*, defaults to 4096):
-            The maximum sequence length that this model might ever be used with. JetMoE's sliding window attention
+            The maximum sequence length that this model might ever be used with. Medway's sliding window attention
             allows sequence of up to 4096*32 tokens.
         activation_function (`string`, *optional*, defaults to `"silu"`): Defines the activation function for MLP experts.
         glu (`bool`, *optional*, defaults to `True`): Whether to use Gated Linear Units in the MLP experts.
@@ -71,19 +71,19 @@ class JetMoEConfig(PretrainedConfig):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
 
     ```python
-    >>> from transformers import JetMoEModel, JetMoEConfig
+    >>> from transformers import MedwayModel, MedwayConfig
 
-    >>> # Initializing a JetMoE 4B style configuration
-    >>> configuration = JetMoEConfig()
+    >>> # Initializing a Medway 4B style configuration
+    >>> configuration = MedwayConfig()
 
-    >>> # Initializing a model from the JetMoE 4B style configuration
-    >>> model = JetMoEModel(configuration)
+    >>> # Initializing a model from the Medway 4B style configuration
+    >>> model = MedwayModel(configuration)
 
     >>> # Accessing the model configuration
     >>> configuration = model.config
     ```"""
 
-    model_type = "jetmoe"
+    model_type = "Medway"
     keys_to_ignore_at_inference = ["past_key_values"]
 
     def __init__(

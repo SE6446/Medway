@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name='jetmoe',
+setup(name='medway',
       packages=find_packages(), 
       install_requires=[
             'torch',

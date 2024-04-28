@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2024 JetMoE AI and the HuggingFace Inc. team. All rights reserved.
+# Copyright 2024 Medway AI and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch JetMoE model."""
+"""PyTorch Medway model."""
 
 import math
 import warnings
@@ -45,7 +45,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from .configuration_jetmoe import JetMoEConfig
+from .configuration_medway import MedwayConfig
 from .utils import MoE, ParallelExperts
 
 
@@ -55,12 +55,12 @@ if is_flash_attn_2_available():
 
 logger = logging.get_logger(__name__)
 
-_CHECKPOINT_FOR_DOC = "jetmoe"
-_CONFIG_FOR_DOC = "JetMoEConfig"
+_CHECKPOINT_FOR_DOC = "Medway"
+_CONFIG_FOR_DOC = "MedwayConfig"
 
 
 @dataclass
-class JetMoEBaseModelOutputWithPast(BaseModelOutputWithPast):
+class MedwayBaseModelOutputWithPast(BaseModelOutputWithPast):
     """
     Base class for model's outputs that may also contain a past key/values (to speed up sequential decoding).
 
@@ -100,7 +100,7 @@ class JetMoEBaseModelOutputWithPast(BaseModelOutputWithPast):
 
 
 @dataclass
-class JetMoECausalLMOutputWithPast(CausalLMOutputWithPast):
+class MedwayCausalLMOutputWithPast(CausalLMOutputWithPast):
     """
     Base class for causal language model (or autoregressive) outputs.
 
@@ -137,7 +137,7 @@ class JetMoECausalLMOutputWithPast(CausalLMOutputWithPast):
 
 
 @dataclass
-class JetMoESequenceClassifierOutputWithPast(SequenceClassifierOutputWithPast):
+class MedwaySequenceClassifierOutputWithPast(SequenceClassifierOutputWithPast):
     """
     Base class for outputs of sentence classification models.
 
@@ -186,10 +186,10 @@ def _get_unpad_data(attention_mask):
     )
 
 
-class JetMoERMSNorm(nn.Module):
+class MedwayRMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         """
-        JetMoERMSNorm module
+        MedwayRMSNorm module
         """
         super().__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size))
@@ -204,7 +204,7 @@ class JetMoERMSNorm(nn.Module):
 
 
 # copied from transformers.models.llama.modeling_llama.LlamaRotaryEmbedding
-class JetMoERotaryEmbedding(nn.Module):
+class MedwayRotaryEmbedding(nn.Module):
     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
         super().__init__()
 
@@ -277,14 +277,14 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=2):
     return q_embed, k_embed
 
 
-class JetMoEAttention(nn.Module):
+class MedwayAttention(nn.Module):
     """
     Multi-headed attention from 'Attention Is All You Need' paper.
     """
 
-    def __init__(self, config: JetMoEConfig, layer_idx: Optional[int] = None):
+    def __init__(self, config: MedwayConfig, layer_idx: Optional[int] = None):
         """
-        Initialize the JetMoEAttention module.
+        Initialize the MedwayAttention module.
 
         Args:
             config: Configuration object with model hyperparameters.
@@ -318,7 +318,7 @@ class JetMoEAttention(nn.Module):
 
         self.kv_proj = torch.nn.Linear(config.hidden_size, self.kv_projection_size * 2, bias=False)
 
-        self.rotary_emb = JetMoERotaryEmbedding(
+        self.rotary_emb = MedwayRotaryEmbedding(
             config.kv_channels,
             max_position_embeddings=config.max_position_embeddings,
             base=config.rope_theta,
@@ -419,15 +419,15 @@ class JetMoEAttention(nn.Module):
         return attn_output, attn_weights, past_key_value, aux_loss
 
 
-# copied from transformers.models.llama.modeling_llama.LlamaSdpaAttention with Llama->JetMoE
-class JetMoESdpaAttention(JetMoEAttention):
+# copied from transformers.models.llama.modeling_llama.LlamaSdpaAttention with Llama->Medway
+class MedwaySdpaAttention(MedwayAttention):
     """
-    JetMoE attention module using torch.nn.functional.scaled_dot_product_attention. This module inherits from
-    `JetMoEAttention` as the weights of the module stays untouched. The only changes are on the forward pass to adapt to
+    Medway attention module using torch.nn.functional.scaled_dot_product_attention. This module inherits from
+    `MedwayAttention` as the weights of the module stays untouched. The only changes are on the forward pass to adapt to
     SDPA API.
     """
 
-    # Adapted from JetMoEAttention.forward
+    # Adapted from MedwayAttention.forward
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -440,7 +440,7 @@ class JetMoESdpaAttention(JetMoEAttention):
         if output_attentions:
             # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
             logger.warning_once(
-                "JetMoEModel is using JetMoESdpaAttention, but `torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to the manual attention implementation, "
+                "MedwayModel is using MedwaySdpaAttention, but `torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to the manual attention implementation, "
                 'but specifying the manual implementation will be required from Transformers version v5.0.0 onwards. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
             )
             return super().forward(
@@ -515,7 +515,7 @@ class JetMoESdpaAttention(JetMoEAttention):
         return attn_output, None, past_key_value, aux_loss
 
 
-class JetMoEFlashAttention2(JetMoEAttention):
+class MedwayFlashAttention2(MedwayAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -538,7 +538,7 @@ class JetMoEFlashAttention2(JetMoEAttention):
         Optional[Tuple[torch.Tensor, Tuple[torch.Tensor], Tuple[torch.Tensor, ...]]],
     ]:
         """
-        Forward pass of the JetMoEAttention module.
+        Forward pass of the MedwayAttention module.
 
         Args:
             hidden_states (Optional[torch.FloatTensor]): Input hidden states.
@@ -715,25 +715,25 @@ class JetMoEFlashAttention2(JetMoEAttention):
         )
 
 
-JETMOE_ATTENTION_CLASSES = {
-    "eager": JetMoEAttention,
-    "flash_attention_2": JetMoEFlashAttention2,
-    "sdpa": JetMoESdpaAttention,
+Medway_ATTENTION_CLASSES = {
+    "eager": MedwayAttention,
+    "flash_attention_2": MedwayFlashAttention2,
+    "sdpa": MedwaySdpaAttention,
 }
 
 
-class JetMoEBlock(nn.Module):
-    def __init__(self, config: JetMoEConfig, layer_idx: Optional[int] = None):
+class MedwayBlock(nn.Module):
+    def __init__(self, config: MedwayConfig, layer_idx: Optional[int] = None):
         """
-        Initialize the JetMoEBlock module.
+        Initialize the MedwayBlock module.
 
         Args:
             config: Configuration object with model hyperparameters.
         """
         super().__init__()
-        self.input_layernorm = JetMoERMSNorm(config.hidden_size)
-        self.self_attention = JETMOE_ATTENTION_CLASSES[config._attn_implementation](config, layer_idx)
-        self.post_attention_layernorm = JetMoERMSNorm(config.hidden_size)
+        self.input_layernorm = MedwayRMSNorm(config.hidden_size)
+        self.self_attention = Medway_ATTENTION_CLASSES[config._attn_implementation](config, layer_idx)
+        self.post_attention_layernorm = MedwayRMSNorm(config.hidden_size)
 
         self.mlp = MoE(
             input_size=config.hidden_size,
@@ -756,7 +756,7 @@ class JetMoEBlock(nn.Module):
         **kwargs,
     ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
         """
-        Forward pass of the JetMoEBlock module.
+        Forward pass of the MedwayBlock module.
 
         Args:
             hidden_states (Optional[torch.FloatTensor]): Input hidden states.
@@ -797,16 +797,16 @@ class JetMoEBlock(nn.Module):
         return outputs
 
 
-class JetMoEPreTrainedModel(PreTrainedModel):
+class MedwayPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
     models.
     """
 
-    config_class = JetMoEConfig
+    config_class = MedwayConfig
     base_model_prefix = "transformer"
     supports_gradient_checkpointing = False
-    _no_split_modules = ["JetMoEBlock"]
+    _no_split_modules = ["MedwayBlock"]
     _skip_keys_device_placement = "past_key_values"
     _supports_flash_attn_2 = True
     _supports_sdpa = True
@@ -814,7 +814,7 @@ class JetMoEPreTrainedModel(PreTrainedModel):
 
     def __init__(self, *inputs, **kwargs):
         """
-        Initialize the JetMoEPreTrainedModel.
+        Initialize the MedwayPreTrainedModel.
 
         Args:
             *inputs: Variable length input arguments.
@@ -863,7 +863,7 @@ class JetMoEPreTrainedModel(PreTrainedModel):
     #     gradient_checkpointing_kwargs={"use_reentrant": False},
     # ):
     #     """
-    #     Set gradient checkpointing for the JetMoEModel.
+    #     Set gradient checkpointing for the MedwayModel.
 
     #     Args:
     #         module: The module for which gradient checkpointing is set.
@@ -871,24 +871,24 @@ class JetMoEPreTrainedModel(PreTrainedModel):
     #     """
     #     self._gradient_checkpointing_func = checkpoint
     #     self.gradient_checkpointing = True
-    #     if isinstance(module, JetMoEModel):
+    #     if isinstance(module, MedwayModel):
     #         module.gradient_checkpointing = value
     #         module.gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
     #         module._gradient_checkpointing_func = checkpoint
 
 
-JETMOE_START_DOCSTRING = r"""
+Medway_START_DOCSTRING = r"""
     This model is a PyTorch [torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) sub-class. Use
     it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage and
     behavior.
 
     Parameters:
-        config ([`JetMoEConfig`]): Model configuration class with all the parameters of the model.
+        config ([`MedwayConfig`]): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~PreTrainedModel.from_pretrained`] method to load the model weights.
 """
 
-JETMOE_INPUTS_DOCSTRING = r"""
+Medway_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.LongTensor` of shape `({0})`):
             Indices of input sequence tokens in the vocabulary.
@@ -939,26 +939,26 @@ JETMOE_INPUTS_DOCSTRING = r"""
 
 
 @add_start_docstrings(
-    "The bare JetMoE Model outputting raw hidden-states without any specific head on top.",
-    JETMOE_START_DOCSTRING,
+    "The bare Medway Model outputting raw hidden-states without any specific head on top.",
+    Medway_START_DOCSTRING,
 )
-class JetMoEModel(JetMoEPreTrainedModel):
+class MedwayModel(MedwayPreTrainedModel):
     """
-    Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`JetMoEBlock`]
+    Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`MedwayBlock`]
 
     Args:
-        config: JetMoEConfig
+        config: MedwayConfig
     """
 
-    def __init__(self, config: JetMoEConfig):
+    def __init__(self, config: MedwayConfig):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList([JetMoEBlock(config, layer_idx) for layer_idx in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([MedwayBlock(config, layer_idx) for layer_idx in range(config.num_hidden_layers)])
         self._attn_implementation = config._attn_implementation
-        self.norm = JetMoERMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.norm = MedwayRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
         self.gradient_checkpointing = False
         # Initialize weights and apply final processing
@@ -970,7 +970,7 @@ class JetMoEModel(JetMoEPreTrainedModel):
     def set_input_embeddings(self, value):
         self.embed_tokens = value
 
-    @add_start_docstrings_to_model_forward(JETMOE_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(Medway_INPUTS_DOCSTRING)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -1033,7 +1033,7 @@ class JetMoEModel(JetMoEPreTrainedModel):
             if is_padding_right:
                 raise ValueError(
                     "You are attempting to perform batched generation with padding_side='right'"
-                    " this may lead to unexpected behaviour for Flash Attention version of JetMoE. Make sure to "
+                    " this may lead to unexpected behaviour for Flash Attention version of Medway. Make sure to "
                     " call `tokenizer.padding_side  = 'left'` before tokenizing the input. "
                 )
 
@@ -1121,7 +1121,7 @@ class JetMoEModel(JetMoEPreTrainedModel):
 
         if not return_dict:
             return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
-        return JetMoEBaseModelOutputWithPast(
+        return MedwayBaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,
             hidden_states=all_hidden_states,
@@ -1130,12 +1130,12 @@ class JetMoEModel(JetMoEPreTrainedModel):
         )
 
 
-class JetMoEForCausalLM(JetMoEPreTrainedModel):
+class MedwayForCausalLM(MedwayPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
         super().__init__(config)
-        self.model = JetMoEModel(config)
+        self.model = MedwayModel(config)
         self.vocab_size = config.vocab_size
         self.aux_loss_coef = getattr(config, "aux_loss_coef", 0.01)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -1162,7 +1162,7 @@ class JetMoEForCausalLM(JetMoEPreTrainedModel):
     def get_decoder(self):
         return self.model
 
-    @add_start_docstrings_to_model_forward(JETMOE_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(Medway_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=CausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
@@ -1230,7 +1230,7 @@ class JetMoEForCausalLM(JetMoEPreTrainedModel):
         if labels is not None and self.model.training:
             loss += self.aux_loss_coef * outputs.aux_loss.to(loss.device)
 
-        return JetMoECausalLMOutputWithPast(
+        return MedwayCausalLMOutputWithPast(
             loss=loss,
             logits=logits,
             past_key_values=outputs.past_key_values,
@@ -1308,9 +1308,9 @@ class JetMoEForCausalLM(JetMoEPreTrainedModel):
 
 @add_start_docstrings(
     """
-    The JetMoE Model transformer with a sequence classification head on top (linear layer).
+    The Medway Model transformer with a sequence classification head on top (linear layer).
 
-    [`JetMoEForSequenceClassification`] uses the last token in order to do the classification, as other causal models
+    [`MedwayForSequenceClassification`] uses the last token in order to do the classification, as other causal models
     (e.g. GPT-2) do.
 
     Since it does classification on the last token, it requires to know the position of the last token. If a
@@ -1319,14 +1319,14 @@ class JetMoEForCausalLM(JetMoEPreTrainedModel):
     padding tokens when `inputs_embeds` are passed instead of `input_ids`, it does the same (take the last value in
     each row of the batch).
     """,
-    JETMOE_START_DOCSTRING,
+    Medway_START_DOCSTRING,
 )
-# Copied from transformers.models.llama.modeling_llama.LlamaForSequenceClassification with Llama->JetMoE, LLAMA->JETMOE
-class JetMoEForSequenceClassification(JetMoEPreTrainedModel):
+# Copied from transformers.models.llama.modeling_llama.LlamaForSequenceClassification with Llama->Medway, LLAMA->Medway
+class MedwayForSequenceClassification(MedwayPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
-        self.model = JetMoEModel(config)
+        self.model = MedwayModel(config)
         self.score = nn.Linear(config.hidden_size, self.num_labels, bias=False)
 
         # Initialize weights and apply final processing
@@ -1338,7 +1338,7 @@ class JetMoEForSequenceClassification(JetMoEPreTrainedModel):
     def set_input_embeddings(self, value):
         self.model.embed_tokens = value
 
-    @add_start_docstrings_to_model_forward(JETMOE_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(Medway_INPUTS_DOCSTRING)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
