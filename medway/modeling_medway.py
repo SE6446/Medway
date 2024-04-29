@@ -359,7 +359,7 @@ class MedwayAttention(nn.Module):
             glu=False,
         )
 
-        self.kv_proj = BitLinear(config.hidden_size, self.kv_projection_size * 2, bias=False)
+        self.kv_proj = BitLinear(config.hidden_size, self.kv_projection_size * 2,config.activation_function, bias=False)
 
         self.rotary_emb = MedwayRotaryEmbedding(
             config.kv_channels,
