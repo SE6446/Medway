@@ -46,7 +46,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from .configuration_medway import MedwayConfig
-from .utils import MoE, ParallelExperts
+from .utils import MoE, ParallelExperts1_58b
 
 
 if is_flash_attn_2_available():
@@ -882,7 +882,7 @@ class MedwayPreTrainedModel(PreTrainedModel):
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
-        elif isinstance(module, ParallelExperts):
+        elif isinstance(module, ParallelExperts1_58b):
             module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
 
     # def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs={}):
