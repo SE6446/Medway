@@ -61,7 +61,7 @@ class ParallelExperts1_58b(nn.Module):
         nn.init.uniform_(self.weight, -1.0 / self.weight.size(1), 1.0 / self.weight.size(1))
 
     #TODO make inference version.
-    def __weight_quant(w):
+    def __weight_quant(self,w):
         """ Per-tensor quantization to 1.58 bits. No grouping is needed for quantization.
         Args:
         w: a weight tensor with shape [d, k]

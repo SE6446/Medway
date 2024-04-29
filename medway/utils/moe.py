@@ -81,7 +81,7 @@ class MoE(nn.Module):
         return self.router.loss
 
     #TODO create an inference edition for this. This should only be used for training
-    def __activation_quant(x):
+    def __activation_quant(self,x):
         """ Per-token quantization to 8 bits. No grouping is needed for quantization.
         Args:
         x: an activation tensor with shape [n, d]
@@ -91,7 +91,7 @@ class MoE(nn.Module):
         scale = 127.0 / x.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
         y = (x * scale).round().clamp_(-128, 127) / scale
         return y
-    def __weight_quant(w):
+    def __weight_quant(self,w):
         """ Per-tensor quantization to 1.58 bits. No grouping is needed for quantization.
         Args:
         w: a weight tensor with shape [d, k]
