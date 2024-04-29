@@ -90,7 +90,7 @@ class MedwayConfig(PretrainedConfig):
         vocab_size=32000,
         hidden_size=1024,
         num_hidden_layers=12,
-        num_attention_heads=32,
+        num_attention_heads=16,
         num_key_value_heads=8,
         kv_channels=128,
         ffn_hidden_size=4096,
