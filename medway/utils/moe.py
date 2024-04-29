@@ -232,8 +232,8 @@ class MoE(nn.Module):
         x = x.reshape(-1, emb_size)
         loss = self.compute_gate(x)
 
+        x = x + (self.__activation_quant(x) - x).detach()
         expert_inputs = x[self.batch_index]
-        expert_inputs = expert_inputs + (self.__activation_quant(expert_inputs) - expert_inputs).detach()
         expert_outputs = self.input_linear(expert_inputs, self.expert_size)
 
         zeros = torch.zeros(
