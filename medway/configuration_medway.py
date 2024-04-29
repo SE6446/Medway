@@ -24,10 +24,9 @@ logger = logging.get_logger(__name__)
 class MedwayConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`MedwayModel`]. It is used to instantiate an
-    Medway model according to the specified arguments, defining the model architecture. Instantiating a configuration
-    with the defaults will yield a configuration of the Medway-4B.
+    Medway model according to the specified arguments, defining the model architecture. .
 
-    [Medway/Medway-8b](https://huggingface.co/Medway/Medway-8b)
+
 
     Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
     documentation from [`PretrainedConfig`] for more information.

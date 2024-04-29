@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parallel_experts import ParallelExperts, compute_gating
+from .parallel_experts import ParallelExperts1_58b, compute_gating
 
 from .gate import top_k_gating
 
@@ -31,7 +31,7 @@ class MoE(nn.Module):
         top_k,
         bias=True,
         activation=None,
-        glu=True,
+        glu=True
     ):
         super(MoE, self).__init__()
 
@@ -45,8 +45,8 @@ class MoE(nn.Module):
         else:
             self.bias = None
 
-        self.input_linear = ParallelExperts(num_experts, input_size, hidden_size * 2 if glu else hidden_size)
-        self.output_linear = ParallelExperts(num_experts, hidden_size, input_size)
+        self.input_linear = ParallelExperts1_58b(num_experts, input_size, hidden_size * 2 if glu else hidden_size)
+        self.output_linear = ParallelExperts1_58b(num_experts, hidden_size, input_size)
 
         self.top_k = min(top_k, self.num_experts)
         self.activation = activation
@@ -80,6 +80,28 @@ class MoE(nn.Module):
 
         return self.router.loss
 
+    #TODO create an inference edition for this. This should only be used for training
+    def __activation_quant(x):
+        """ Per-token quantization to 8 bits. No grouping is needed for quantization.
+        Args:
+        x: an activation tensor with shape [n, d]
+        Returns:
+        y: a quantized activation tensor with shape [n, d]
+        """
+        scale = 127.0 / x.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
+        y = (x * scale).round().clamp_(-128, 127) / scale
+        return y
+    def __weight_quant(w):
+        """ Per-tensor quantization to 1.58 bits. No grouping is needed for quantization.
+        Args:
+        w: a weight tensor with shape [d, k]
+        Returns:
+        u: a quantized weight with shape [d, k]
+        """
+        scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
+        u = (w * scale).round().clamp_(-1, 1) / scale
+        return u
+
     def batch_forward(self, x):
         """
         Forward pass of the mixture of experts layer.
@@ -99,13 +121,15 @@ class MoE(nn.Module):
         loss = self.compute_gate(x)
 
         expert_inputs = x[self.batch_index]
+        expert_inputs = expert_inputs + (self.__activation_quant(expert_inputs) - expert_inputs).detach()
         h = self.input_linear(expert_inputs, self.expert_size)
         if self.glu:
             h, g = h.chunk(2, dim=-1)
             h = self.activation(h) * g
         else:
             h = self.activation(h)
-        expert_outputs = self.output_linear(h, self.expert_size)
+        h_quant = h + (self.__activation_quant(h) - h).detach()
+        expert_outputs = self.output_linear(h_quant, self.expert_size)
 
         expert_outputs = expert_outputs * self.batch_gates[:, None]
 
@@ -122,18 +146,20 @@ class MoE(nn.Module):
         x = x.reshape(1, self.input_size)
         top_k_indices, top_k_gates = self.router(x)
         loss = self.router.loss
+        x_quant = x + (self.__activation_quant(x) - x).detach()
 
         y_list = []
         for i in range(self.top_k):
             expert_idx = top_k_indices[0, i]
-
-            h = F.linear(x, self.input_linear.weight[expert_idx])
+            h = F.linear(x_quant, self.input_linear.weight[expert_idx] + (self.__weight_quant(self.input_linear.weight[expert_idx]) - self.input_linear.weight[expert_idx]).detach())
             if self.glu:
                 h, g = h.chunk(2, dim=-1)
                 h = self.activation(h) * g
             else:
                 h = self.activation(h)
-            y = F.linear(h, self.output_linear.weight[expert_idx]) * top_k_gates[0, i]
+            # A trick for implementing Straight-Through-Estimator (STE) using detach()
+            h_quant = h + (self.__activation_quant(h) - h).detach()
+            y = F.linear(h_quant, self.output_linear.weight[expert_idx] + (self.__weight_quant(self.output_linear.weight[expert_idx]) - self.output_linear.weight[expert_idx]).detach()) * top_k_gates[0, i]
 
             y_list.append(y)
 
@@ -165,11 +191,11 @@ class MoE(nn.Module):
         x = x.reshape(1, self.input_size)
         self.top_k_indices, self.top_k_gates = self.router(x)
         loss = self.router.loss
-
+        x_quant = x + (self.__activation_quant(x) - x).detach()
         y_list = []
         for i in range(self.top_k):
             expert_idx = self.top_k_indices[0, i]
-            y = F.linear(x, self.input_linear.weight[expert_idx])
+            y = F.linear(x_quant, self.input_linear.weight[expert_idx] + (self.__weight_quant(self.input_linear.weight[expert_idx]) - self.input_linear.weight[expert_idx]).detach())
             y_list.append(y)
         y = torch.cat(y_list, dim=0)
         y = y.view(bsz, length, self.top_k, -1)
@@ -207,6 +233,7 @@ class MoE(nn.Module):
         loss = self.compute_gate(x)
 
         expert_inputs = x[self.batch_index]
+        expert_inputs = expert_inputs + (self.__activation_quant(expert_inputs) - expert_inputs).detach()
         expert_outputs = self.input_linear(expert_inputs, self.expert_size)
 
         zeros = torch.zeros(

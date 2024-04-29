@@ -31,10 +31,10 @@ def compute_gating(k: int, num_experts: int, top_k_gates: torch.Tensor, top_k_in
     return batch_gates, batch_index, expert_size, index_sorted_experts
 
 
-class ParallelExperts(nn.Module):
+class ParallelExperts1_58b(nn.Module):
     def __init__(self, num_experts, input_size, output_size) -> None:
         """
-        Initialize the ParallelExperts module.
+        Initialize the ParallelExperts1_58b module.
 
         Args:
             num_experts (int): Number of experts.
@@ -60,9 +60,21 @@ class ParallelExperts(nn.Module):
         """
         nn.init.uniform_(self.weight, -1.0 / self.weight.size(1), 1.0 / self.weight.size(1))
 
+    #TODO make inference version.
+    def __weight_quant(w):
+        """ Per-tensor quantization to 1.58 bits. No grouping is needed for quantization.
+        Args:
+        w: a weight tensor with shape [d, k]
+        Returns:
+        u: a quantized weight with shape [d, k]
+        """
+        scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
+        u = (w * scale).round().clamp_(-1, 1) / scale
+        return u
+
     def forward(self, inputs, expert_size):
         """
-        Forward pass of the ParallelExperts module.
+        Forward pass of the ParallelExperts1_58b module.
 
         Args:
             inputs (Tensor): Input tensor.
@@ -71,9 +83,12 @@ class ParallelExperts(nn.Module):
         Returns:
             Tensor: Output tensor.
         """
+        #! Input should be pre_quantazised.
+        w = self.weight
+        w_quant = w + (self.__weight_quant(w) - w).detach()
         input_list = inputs.split(expert_size, dim=0)
         output_list = []
         for i in range(self.num_experts):
-            output_list.append(F.linear(input_list[i], self.weight[i]))
+            output_list.append(F.linear(input_list[i], w_quant[i]))
         results = torch.cat(output_list, dim=0)
         return results
