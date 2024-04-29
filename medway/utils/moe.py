@@ -263,11 +263,11 @@ class MoE(nn.Module):
         bsz, length, k, emb_size = x.size()
 
         x = x.reshape(k, emb_size)
-
+        x_quant = x + (self.__activation_quant(x) - x).detach()
         y_list = []
         for i in range(self.top_k):
             expert_idx = self.top_k_indices[0, i]
-            y = F.linear(x[i], self.output_linear.weight[expert_idx]) * self.top_k_gates[0, i]
+            y = F.linear(x_quant[i], self.output_linear.weight[expert_idx]) * self.top_k_gates[0, i]
             y_list.append(y)
         y = sum(y_list)
         y = y.view(bsz, length, self.input_size)
@@ -289,8 +289,8 @@ class MoE(nn.Module):
 
         bsz, length, k, emb_size = x.size()
         x = x.reshape(-1, emb_size)
-
-        expert_inputs = x[self.index_sorted_experts]
+        x_quant = x + (self.__activation_quant(x) - x).detach()
+        expert_inputs = x_quant[self.index_sorted_experts]
         expert_outputs = self.output_linear(expert_inputs, self.expert_size)
 
         expert_outputs = expert_outputs * self.batch_gates[:, None]

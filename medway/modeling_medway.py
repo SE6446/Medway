@@ -85,7 +85,7 @@ class BitLinear(nn.Linear):
     """
     def __init__(self, in_features: int, out_features: int, activation_function, bias: bool = True, device=None, dtype=None) -> None:
         super().__init__(in_features, out_features, bias, device, dtype)
-        self.activation = ACT2FN[activation_function]
+        self.RMSNorm = MedwayRMSNorm(in_features)
     def forward(self, x):
         """
         Args:
@@ -94,9 +94,9 @@ class BitLinear(nn.Linear):
         y: an output tensor with shape [n, d]
         """
         w = self.weight # a weight tensor with shape [d, k]
-        x_act = self.activation(x)
+        x_norm = self.RMSNorm(x)
         # A trick for implementing Straight-Through-Estimator (STE) using detach()
-        x_quant = x_act + (activation_quant(x_act) - x_act).detach()
+        x_quant = x_norm + (activation_quant(x_norm) - x_norm).detach()
         w_quant = w + (weight_quant(w) - w).detach()
         y = F.linear(x_quant, w_quant)
         return y
@@ -774,9 +774,7 @@ class MedwayBlock(nn.Module):
             config: Configuration object with model hyperparameters.
         """
         super().__init__()
-        self.input_layernorm = MedwayRMSNorm(config.hidden_size)
         self.self_attention = Medway_ATTENTION_CLASSES[config._attn_implementation](config, layer_idx)
-        self.post_attention_layernorm = MedwayRMSNorm(config.hidden_size)
 
         self.mlp = MoE(
             input_size=config.hidden_size,
@@ -815,7 +813,7 @@ class MedwayBlock(nn.Module):
         """
         # Self Attention
         attn_output, self_attn_weights, present_key_value, att_aux_loss = self.self_attention(
-            hidden_states=self.input_layernorm(hidden_states),
+            hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_value=past_key_value,
@@ -824,7 +822,7 @@ class MedwayBlock(nn.Module):
         )
 
         hidden_states = hidden_states + attn_output
-        x_mlp, mlp_aux_loss = self.mlp(self.post_attention_layernorm(hidden_states))
+        x_mlp, mlp_aux_loss = self.mlp(self.hidden_states)
         hidden_states = hidden_states + x_mlp
 
         outputs = (hidden_states,)
