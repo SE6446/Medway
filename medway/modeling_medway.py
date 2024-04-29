@@ -822,7 +822,7 @@ class MedwayBlock(nn.Module):
         )
 
         hidden_states = hidden_states + attn_output
-        x_mlp, mlp_aux_loss = self.mlp(self.hidden_states)
+        x_mlp, mlp_aux_loss = self.mlp(hidden_states)
         hidden_states = hidden_states + x_mlp
 
         outputs = (hidden_states,)
